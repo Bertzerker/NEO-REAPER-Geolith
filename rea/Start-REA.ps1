@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 param([string]$Rom,[string]$Firmware,[ValidateSet('AES','MVS')][string]$System='AES',[ValidateRange(0,3)][int]$Region=0,[ValidateRange(1024,65535)][int]$Port=8910,[string]$DataDirectory=(Join-Path $PSScriptRoot 'session'),[switch]$Diagnostic,[switch]$Build,[switch]$Wait)
 $ErrorActionPreference='Stop'
 if($Build -or !(Test-Path "$PSScriptRoot/bin/NeoReaper.dll")){& "$PSScriptRoot/Build.ps1";if($LASTEXITCODE-ne0){throw 'Build failed'}}

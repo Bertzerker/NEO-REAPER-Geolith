@@ -4,7 +4,7 @@ Local Windows x64 AES/MVS investigation workbench. Uses actual Geolith native CP
 
 ## Build and run
 
-Prerequisites: .NET 10 SDK/runtime, Node.js, Visual Studio C++ x64 tools (VS18 works), Git. Python is only needed for original diagnostic generation/tests; use `C:/Users/Chris/AppData/Local/Python/bin/python.exe` on this workstation.
+Prerequisites: PowerShell 7, .NET 10 SDK/runtime, Node.js, Visual Studio C++ x64 tools (VS18 works), Git. Python is only needed for original diagnostic generation/tests; use `C:/Users/Chris/AppData/Local/Python/bin/python.exe` on this workstation.
 
 ```powershell
 cd 'C:/Users/Chris/Desktop/AI Code/REA Emulators/neogeo'

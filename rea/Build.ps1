@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 param([string]$Configuration='Release',[switch]$NativeOnly)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot
@@ -18,8 +19,10 @@ $sources+=@("$build/geo_lspc.c","$PSScriptRoot/native/bridge.c","$core/src/m68k/
 $env:INCLUDE="$core/src/ymfm;$env:INCLUDE"
 $compileOptions=@('/nologo','/LD','/TC','/std:c17','/O2','/MT','/D_CRT_SECURE_NO_WARNINGS','/D_USE_MATH_DEFINES','/DWIN32','/D_CRT_NONSTDC_NO_DEPRECATE','/D__BYTE_ORDER__=1234','/D__ORDER_LITTLE_ENDIAN__=1234','/D__ORDER_BIG_ENDIAN__=4321',"/I`"$core/src`"","/I`"$core/deps`"","/I`"$core/deps/libretro-common/include`"","/I`"$core/deps/miniz`"","/I`"$PSScriptRoot/native`"", '/wd4244','/wd4267','/wd4018','/wd4996')
 $compileOptions+=($sources | ForEach-Object {"`"$_`""});$compileOptions+="/link /OUT:`"$bin/neo-reaper-core.dll`" /INCREMENTAL:NO"
-$response=Join-Path $build 'compile.rsp';Set-Content -LiteralPath $response -Value ($compileOptions-join "`r`n") -Encoding utf8NoBOM
-$cmd=Join-Path $build 'compile.cmd';Set-Content -LiteralPath $cmd -Value "@echo off`r`ncall `"$dev`" -arch=x64 -host_arch=x64 >nul`r`nif errorlevel 1 exit /b 1`r`ncd /d `"$build`"`r`ncl @`"$response`"`r`n" -Encoding ascii
+$response=Join-Path $build 'compile.rsp';Set-Content -LiteralPath $response -Value ($compileOptions-join "`r`n") -Encoding utf8BOM
+# Keep the batch file ASCII-only; Windows passes these path variables as UTF-16.
+$env:NR_BUILD_PATH=$build;$env:NR_RESPONSE_PATH=$response;$env:NR_DEV_PATH=$dev
+$cmd=Join-Path $build 'compile.cmd';Set-Content -LiteralPath $cmd -Value "@echo off`r`ncall `"%NR_DEV_PATH%`" -arch=x64 -host_arch=x64 >nul`r`nif errorlevel 1 exit /b 1`r`ncd /d `"%NR_BUILD_PATH%`"`r`ncl @`"%NR_RESPONSE_PATH%`"`r`n" -Encoding ascii
 & $env:ComSpec /d /c $cmd
 if($LASTEXITCODE-ne0){throw 'Native core compilation failed.'}
 if(!$NativeOnly){& dotnet build "$PSScriptRoot/host/NeoReaper.csproj" -c $Configuration -o $bin;if($LASTEXITCODE-ne0){throw 'Host build failed.'}}
