@@ -1,0 +1,3 @@
+# Preserve bundled upstream distributions and their original string whitespace.
+rea/public/vendor/** -text -whitespace linguist-vendored
+rea/licenses/** -whitespace

@@ -13,4 +13,7 @@ firmware/
 *.zip
 *.neo
 *.state
+**/obj/
+**/bin/
+**/__pycache__/
 
