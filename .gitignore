@@ -1,0 +1,16 @@
+rea/bin/
+rea/obj/
+rea/session/
+rea/test-output/
+rea/checkpoints/
+rea/movies/
+rea/annotations/
+rea/dependencies/
+roms/
+firmware/
+*.user
+*.log
+*.zip
+*.neo
+*.state
+

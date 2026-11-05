@@ -1,0 +1,3 @@
+[submodule "upstream/geolith"]
+	path = upstream/geolith
+	url = https://github.com/libretro/geolith-libretro.git
