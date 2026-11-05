@@ -8,7 +8,7 @@ NEO REAPER integration/diagnostic/conversion/test code is MIT, as stated per fil
 | Geolith CUE/disc support compiled into DLL | Pinned source, cartridge frontend does not expose CD loading | BSD-3-Clause, including Romain Tisserand notices; CD capability remains unsupported |
 | Musashi 4.60 | Pinned `src/m68k/` | MIT, Karl Stenerud; source header retained and notice copied |
 | Jolly Good Z80 adaptation | Pinned `src/z80/` | MIT, Nicolas Allemand, Rupert Carmichael, rofl0r; source notice retained |
-| YMFM C adaptation | Pinned `src/ymfm/` | BSD-3-Clause, Aaron Giles/Rupert Carmichael; file notices retained |
+| YMFM C adaptation | Pinned `src/ymfm/` | BSD-3-Clause, Aaron Giles/Rupert Carmichael; notice in `licenses/ymfm.txt` |
 | miniz | Pinned `deps/miniz/` | MIT; bundled LICENSE retained |
 | Speex resampler | Pinned `deps/speex/` | BSD-style notice in COPYING retained; raw audio mode used |
 | dr_flac | Pinned `deps/libretro-common/include/dr/dr_flac.h` | MIT No Attribution option; original dual-license footer retained/copied; compiled via CUE source |
@@ -16,10 +16,11 @@ NEO REAPER integration/diagnostic/conversion/test code is MIT, as stated per fil
 | DOMPurify | Vendored upstream `purify.min.js`, 3.4.17 | Apache-2.0 or MPL-2.0; Apache-2.0 option; full license in `licenses/dompurify.txt` |
 | Mermaid | Vendored upstream standalone `mermaid.min.js`, 12.3.0 | MIT plus bundled dependencies; original bundle notices retained; full Mermaid license and installed dependency notices copied |
 | .NET 10 | Installed Microsoft SDK/runtime, framework-dependent host | No runtime binaries vendored or committed; uses installed runtime |
-| MSVC x64 CRT | Installed VS18 toolchain, static `/MT` build | Microsoft toolchain redistributable conditions apply to locally built native binaries; no binary release/package is published here |
+| MSVC x64 CRT | Installed VS18 toolchain, static `/MT` build | Microsoft toolchain redistributable conditions apply to the compiled Windows x64 DLLs |
+| libretro API | Pinned `deps/libretro-common/include/libretro.h` | MIT API header; notice in `licenses/libretro-api.txt`; used by the optional RetroArch transport |
 
 `licenses/` preserves notices for binary users. `licenses/ui-dependencies.json` records the installed UI dependency versions and declared licenses; `licenses/ui/` intentionally retains an overinclusive set of installed UI dependency notices, including build/type dependencies not present in the standalone bundles. No external CDN is required. The three vendor files are committed for an offline build and preserve their upstream license comments. To refresh, obtain these exact versions from the official npm registry, copy their standalone distributions and all applicable notices, then rerun browser preview/security checks. The update is a deliberate source change, not a build-time network fetch.
 
-Upstream zstd/libretro-common/CHD code remains in the submodule with its own notices. The direct DLL build does not compile CHD/zstd or the libretro frontend. Their presence in source is not advertised runtime CD support.
+Upstream zstd, libretro-common and CHD code remains in the submodule with its own notices. The Windows release includes an optional REAPER transport DLL for a separately installed RetroArch frontend.
 
 Original diagnostic assets are generated from `diagnostic.py` under MIT. Commercial ROMs/firmware, locally converted user cartridges, private snapshots, user movies and workbench session files are ignored and are not licensed or redistributed by this project. The optional Metal Slug converter contains original code and checksum/mapping facts referenced to MAME's BSD-3-Clause driver; it includes no game bytes or copied MAME implementation.

@@ -1,12 +1,12 @@
 #Requires -Version 7.0
-param([string]$Configuration='Release',[switch]$NativeOnly)
+param([string]$Configuration='Release',[switch]$NativeOnly,[string]$OutputDirectory=(Join-Path $PSScriptRoot 'bin'))
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot
 $core=Join-Path $root 'upstream/geolith'
 if(!(Test-Path "$core/src/geo.c")){throw 'Initialize the pinned core with git submodule update --init --recursive first.'}
 $expected='2dc88e3fa72ff404213a65d6eb5bb33baa687f73'
 $actual=(& git -C $core rev-parse HEAD).Trim();if($actual-ne$expected){throw "Core revision mismatch: $actual"}
-$build=Join-Path $PSScriptRoot 'obj/native';$bin=Join-Path $PSScriptRoot 'bin'
+$build=Join-Path $PSScriptRoot 'obj/native';$bin=[IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Force $build,$bin | Out-Null
 & node "$PSScriptRoot/patch-core.mjs" "$core/src/geo_lspc.c" "$build/geo_lspc.c"
 if($LASTEXITCODE-ne0){throw 'Core observer patch failed.'}
@@ -25,6 +25,13 @@ $env:NR_BUILD_PATH=$build;$env:NR_RESPONSE_PATH=$response;$env:NR_DEV_PATH=$dev
 $cmd=Join-Path $build 'compile.cmd';Set-Content -LiteralPath $cmd -Value "@echo off`r`ncall `"%NR_DEV_PATH%`" -arch=x64 -host_arch=x64 >nul`r`nif errorlevel 1 exit /b 1`r`ncd /d `"%NR_BUILD_PATH%`"`r`ncl @`"%NR_RESPONSE_PATH%`"`r`n" -Encoding ascii
 & $env:ComSpec /d /c $cmd
 if($LASTEXITCODE-ne0){throw 'Native core compilation failed.'}
+$retroResponse=Join-Path $build 'retroarch.rsp'
+$retroOptions=@('/nologo','/LD','/TC','/std:c17','/O2','/MT',"/I`"$core/deps/libretro-common/include`"",
+    "`"$PSScriptRoot/native/retroarch.c`"","/link /OUT:`"$bin/neo-reaper-libretro.dll`" /INCREMENTAL:NO")
+Set-Content -LiteralPath $retroResponse -Value ($retroOptions-join "`r`n") -Encoding utf8BOM
+$env:NR_RESPONSE_PATH=$retroResponse
+& $env:ComSpec /d /c $cmd
+if($LASTEXITCODE-ne0 -or !(Test-Path -LiteralPath "$bin/neo-reaper-libretro.dll")){throw 'RetroArch transport compilation failed.'}
 if(!$NativeOnly){& dotnet build "$PSScriptRoot/host/NeoReaper.csproj" -c $Configuration -o $bin;if($LASTEXITCODE-ne0){throw 'Host build failed.'}}
 $manifest=[ordered]@{product='NEO REAPER - Geolith';coreRevision=$expected;system='Windows x64';nativeDllSha256=(Get-FileHash "$bin/neo-reaper-core.dll" -Algorithm SHA256).Hash.ToLowerInvariant();configuration=$Configuration;stateFormat='NR-state-4-MSVC-x64';nativeCompiler=(Get-ChildItem "$vs/VC/Tools/MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty Name);dotnetSdk=(& dotnet --version)}
 if(Test-Path "$bin/NeoReaper.dll"){$manifest.hostSha256=(Get-FileHash "$bin/NeoReaper.dll" -Algorithm SHA256).Hash.ToLowerInvariant()}

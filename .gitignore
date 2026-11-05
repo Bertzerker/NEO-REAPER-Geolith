@@ -6,6 +6,7 @@ rea/checkpoints/
 rea/movies/
 rea/annotations/
 rea/dependencies/
+rea/sprite-helpers/catalog-*.json
 roms/
 firmware/
 *.user

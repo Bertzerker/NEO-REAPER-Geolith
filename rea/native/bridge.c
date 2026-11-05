@@ -22,6 +22,169 @@ uint32_t nr_tile[2][320*264];
 uint8_t nr_winner[320*264],nr_rows[264];
 uint16_t nr_lineobject[2][320];
 uint32_t nr_linetile[2][320];
+enum {
+    NR_CROP_X = 8, NR_CROP_Y = 24, NR_WIDTH = 304, NR_HEIGHT = 224,
+    NR_SAMPLES_PER_LINE = 96 * 16, NR_POSITION_BITS = 17
+};
+static struct {
+    uint64_t samples[NR_SAMPLES_PER_LINE];
+    size_t count;
+    int ready;
+} sprite_lines[2];
+static struct {
+    uint32_t position_and_strip;
+    uint32_t color;
+} sprite_samples[NR_HEIGHT * NR_SAMPLES_PER_LINE];
+static size_t sprite_count;
+static unsigned sprite_rows;
+static int sprite_valid;
+static uint32_t sprite_selectors[NR_HEIGHT * NR_SAMPLES_PER_LINE];
+static struct {
+    uint32_t key, color, selector;
+} matched_samples[NR_HEIGHT * NR_SAMPLES_PER_LINE];
+static uint8_t matched_pixels[NR_HEIGHT * NR_SAMPLES_PER_LINE];
+static unsigned follow_left, follow_top, follow_right, follow_bottom;
+static uint32_t follow_pixels[NR_WIDTH * NR_HEIGHT];
+static uint32_t follow_packed[NR_WIDTH * NR_HEIGHT];
+
+static void nr_follow_pixel(unsigned x, unsigned y, uint32_t color) {
+    // The browser's ImageData expects RGBA bytes.
+    follow_pixels[y * NR_WIDTH + x] = 0xff000000 | ((color & 0xff) << 16) |
+        (color & 0xff00) | ((color >> 16) & 0xff);
+    if (x < follow_left) follow_left = x;
+    if (x > follow_right) follow_right = x;
+    if (y < follow_top) follow_top = y;
+    if (y > follow_bottom) follow_bottom = y;
+}
+
+static int follow_matches(size_t index, const uint32_t *rules, size_t count) {
+    unsigned slot = sprite_selectors[index] & 0xff;
+    unsigned tile = sprite_selectors[index] >> 8;
+    unsigned strip = (sprite_samples[index].position_and_strip >> NR_POSITION_BITS) & 0x1ff;
+    for (size_t j = 0; j < count; ++j) {
+        const uint32_t *rule = rules + j * 5;
+        if ((rule[0] == 0x100 || slot == rule[0]) && tile >= rule[1] && tile <= rule[2] &&
+            strip >= rule[3] && strip <= rule[4])
+            return 1;
+    }
+    return 0;
+}
+
+API const void *nr_follow_samples(const uint32_t *rules, size_t count, size_t *length) {
+    *length = 0;
+    if (!count || !sprite_valid || sprite_rows != NR_HEIGHT)
+        return NULL;
+    uint8_t roots[512] = {0};
+    int found = 0;
+    for (size_t i = 0; i < sprite_count; ++i) {
+        matched_pixels[i] = follow_matches(i, rules, count);
+        if (!matched_pixels[i])
+            continue;
+        unsigned root = (sprite_samples[i].position_and_strip >> 26) | ((sprite_samples[i].color >> 24) << 6);
+        roots[root] = 1;
+        found = 1;
+    }
+    if (!found)
+        return NULL;
+    for (size_t i = 0; i < sprite_count; ++i) {
+        unsigned root = (sprite_samples[i].position_and_strip >> 26) | ((sprite_samples[i].color >> 24) << 6);
+        if (!roots[root])
+            continue;
+        matched_samples[*length].key = sprite_samples[i].position_and_strip;
+        matched_samples[*length].color = sprite_samples[i].color;
+        matched_samples[*length].selector = sprite_selectors[i] | (matched_pixels[i] ? 0 : 0x80000000u);
+        ++*length;
+    }
+    return matched_samples;
+}
+
+API const void *nr_follow_frame(const uint32_t *rules, size_t count, unsigned *x,
+    unsigned *y, unsigned *width, unsigned *height) {
+    *x = *y = *width = *height = 0;
+    if (!count || !sprite_valid || sprite_rows != NR_HEIGHT)
+        return NULL;
+    follow_left = NR_WIDTH;
+    follow_top = NR_HEIGHT;
+    follow_right = follow_bottom = 0;
+    memset(follow_pixels, 0, sizeof(follow_pixels));
+    // Samples include covered pixels and retain hardware draw order on each line.
+    for (size_t i = 0; i < sprite_count; ++i) {
+        if (!follow_matches(i, rules, count))
+            continue;
+        unsigned pos = sprite_samples[i].position_and_strip & ((1u << NR_POSITION_BITS) - 1);
+        nr_follow_pixel(pos % NR_WIDTH, pos / NR_WIDTH, sprite_samples[i].color);
+    }
+    if (follow_left == NR_WIDTH)
+        return NULL;
+    *x = follow_left;
+    *y = follow_top;
+    *width = follow_right - follow_left + 1;
+    *height = follow_bottom - follow_top + 1;
+    for (unsigned row = 0; row < *height; ++row)
+        memcpy(follow_packed + row * *width, follow_pixels + (row + *y) * NR_WIDTH + *x,
+            *width * sizeof(uint32_t));
+    return follow_packed;
+}
+
+void nr_reset_sprite_samples(void) {
+    sprite_lines[0].ready = sprite_lines[1].ready = 0;
+    sprite_valid = 0;
+}
+
+void nr_begin_sprite_line(unsigned buffer) {
+    sprite_lines[buffer].count = 0;
+    sprite_lines[buffer].ready = 1;
+}
+
+void nr_record_sprite_sample(unsigned buffer, unsigned x, unsigned strip, unsigned root, unsigned palette_entry, unsigned tile) {
+    if (x < NR_CROP_X || x >= NR_CROP_X + NR_WIDTH)
+        return;
+    size_t index = sprite_lines[buffer].count;
+    if (index == NR_SAMPLES_PER_LINE) {
+        sprite_lines[buffer].ready = 0;
+        return;
+    }
+    // Palette index (13 bits), native X, strip and chain root (9 bits each), then tile.
+    sprite_lines[buffer].samples[index] = ((uint64_t)tile << 40) | ((uint64_t)root << 31) |
+        (strip << 22) | (x << 13) | palette_entry;
+    sprite_lines[buffer].count++;
+}
+
+void nr_finish_sprite_line(unsigned buffer, unsigned y, const uint32_t *palette) {
+    int ready = sprite_lines[buffer].ready;
+    sprite_lines[buffer].ready = 0;
+    if (y < NR_CROP_Y || y >= NR_CROP_Y + NR_HEIGHT)
+        return;
+    if (!ready || nr_rows[y]) {
+        sprite_valid = 0;
+        return;
+    }
+    ++sprite_rows;
+    unsigned row = (y - NR_CROP_Y) * NR_WIDTH;
+    // Resolve colors at scanout, when Geolith reads the palette for this line.
+    for (size_t i = 0; i < sprite_lines[buffer].count; ++i) {
+        uint64_t sample = sprite_lines[buffer].samples[i];
+        unsigned x = ((sample >> 13) & 0x1ff) - NR_CROP_X;
+        unsigned position = row + x;
+        unsigned strip = (sample >> 22) & 0x1ff;
+        unsigned root = (sample >> 31) & 0x1ff;
+        uint32_t color = palette[sample & 0x1fff];
+        // Reuse the six free key bits and the implicit opaque alpha byte.
+        sprite_samples[sprite_count].position_and_strip = ((root & 0x3f) << 26) | (strip << NR_POSITION_BITS) | position;
+        sprite_samples[sprite_count].color = (color & 0x00ffffff) | ((root >> 6) << 24);
+        sprite_selectors[sprite_count] = ((uint32_t)(sample >> 40) << 8) | ((sample >> 4) & 0xff);
+        ++sprite_count;
+    }
+}
+
+API const void *nr_sprite_samples(size_t *bytes) {
+    if (!sprite_valid || sprite_rows != NR_HEIGHT) {
+        *bytes = 0;
+        return NULL;
+    }
+    *bytes = sprite_count * sizeof(sprite_samples[0]);
+    return sprite_samples;
+}
 static uint32_t video[320*264];
 static int16_t audio[8192];
 static uint8_t* cartridge;
@@ -88,9 +251,20 @@ API uint64_t nr_step(unsigned p0,unsigned p1){
     if(!loaded)return frame;pads[0]=p0;pads[1]=p1;
     memset(nr_sprite,0,sizeof(nr_sprite));memset(nr_fix,0,sizeof(nr_fix));memset(nr_rows,0,sizeof(nr_rows));memset(nr_winner,0,sizeof(nr_winner));
     memset(nr_palette,255,sizeof(nr_palette));memset(nr_object,255,sizeof(nr_object));memset(nr_tile,255,sizeof(nr_tile));
+    sprite_count = 0;
+    sprite_rows = 0;
+    sprite_valid = nr_observe;
     geo_exec();return ++frame;
 }
-API void nr_observer(int enabled){nr_observe=!!enabled;}
+API void nr_reset(void){
+    geo_reset(0);
+    frame=0;
+    pads[0]=pads[1]=0;
+    samples=0;
+    memset(video,0,sizeof(video));
+    nr_reset_sprite_samples();
+}
+API void nr_observer(int enabled){if(nr_observe!=!!enabled)nr_reset_sprite_samples();nr_observe=!!enabled;}
 API const void* nr_video(int plane){return plane==1?nr_sprite:plane==2?nr_fix:video;}
 API const void* nr_evidence(int kind){switch(kind){case 0:return nr_winner;case 1:return nr_palette;case 2:return nr_object;case 3:return nr_tile;case 4:return nr_rows;default:return NULL;}}
 API const void* nr_memory(int domain,size_t* length){return geo_mem_ptr(domain,length);}

@@ -1,0 +1,26 @@
+{
+  "game": "Metal Slug",
+  "cartridgeSha256": "337bee1dc7f68b59cc31059069aabed8cc7311313615aa05b8a2240496a775bc",
+  "system": "MVS",
+  "region": 0,
+  "sprites": [
+    {
+      "id": "marco",
+      "name": "Marco",
+      "selectors": [
+        { "firstTile": "0x12B00", "lastTile": "0x13FFF" }
+      ]
+    },
+    {
+      "id": "enemy-soldier",
+      "name": "Enemy Soldier",
+      "selectors": [
+        { "firstStrip": 97, "lastStrip": 300, "firstTile": "0x05200", "lastTile": "0x057FF" },
+        { "firstStrip": 97, "lastStrip": 300, "firstTile": "0x05A00", "lastTile": "0x05AFF" },
+        { "firstStrip": 97, "lastStrip": 300, "firstTile": "0x05B30", "lastTile": "0x05CFF" },
+        { "firstStrip": 97, "lastStrip": 300, "firstTile": "0x05DA7", "lastTile": "0x05DFF" },
+        { "firstStrip": 97, "lastStrip": 300, "firstTile": "0x05F40", "lastTile": "0x05F40" }
+      ]
+    }
+  ]
+}
